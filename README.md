@@ -77,6 +77,9 @@ campos que quedaron viejos o que se contradicen entre sí. Así que la consola:
 Ejemplo real del dataset incluido: un proyecto declarado **"Sano"** que en realidad lleva
 **más de 170 días vencido** y no tiene ni una sola tarea abierta.
 
+La auditoría completa del archivo de origen —con las cifras contadas que sostienen cada regla
+del motor— está en **[`docs/analisis-de-datos.md`](docs/analisis-de-datos.md)**.
+
 ---
 
 ## Qué hace
