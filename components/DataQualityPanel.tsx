@@ -2,6 +2,11 @@
 
 import { useId, useState } from 'react'
 import type { ImportIssue } from '@/lib/db/schema'
+import { formatDate } from '@/lib/format'
+import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 
 export type DataQualityPanelProps = {
   issues: ImportIssue[]
@@ -16,24 +21,77 @@ const SEVERITY_META: Record<string, { label: string; dot: string }> = {
 
 const SEVERITY_ORDER = ['error', 'warn', 'info']
 
-/** Traducciones cortas para los codigos de hallazgo mas frecuentes; fallback al code crudo. */
-const CODE_LABELS: Record<string, string> = {
-  declared_overdue_mismatch: 'fechas mal declaradas',
-  declared_overdue_count_mismatch: 'conteo de vencidas mal declarado',
-  declared_open_count_mismatch: 'conteo de tareas abiertas mal declarado',
-  target_date_missing: 'fechas limite faltantes',
-  member_missing_in_team: 'miembro no listado en Team',
-  possible_duplicate: 'posible duplicado',
-  dependency_unresolved: 'dependencia sin resolver',
+/**
+ * El código interno (`declared_overdue_mismatch`) no le dice nada a quien mira la consola.
+ * Cada etiqueta describe el hallazgo en los términos del negocio; lo que no esté acá cae al
+ * código con guiones bajos convertidos en espacios, para que un código nuevo se vea legible
+ * en vez de romper.
+ */
+const CODE_LABELS: Record<string, { one: string; many: string }> = {
+  declared_overdue_mismatch: {
+    one: 'tarea cuyo estado de vencimiento no coincide con su fecha',
+    many: 'tareas cuyo estado de vencimiento no coincide con su fecha',
+  },
+  declared_overdue_count_mismatch: {
+    one: 'proyecto que declara mal cuántas tareas tiene vencidas',
+    many: 'proyectos que declaran mal cuántas tareas tienen vencidas',
+  },
+  declared_open_count_mismatch: {
+    one: 'proyecto que declara mal cuántas tareas tiene abiertas',
+    many: 'proyectos que declaran mal cuántas tareas tienen abiertas',
+  },
+  target_date_missing: { one: 'proyecto sin fecha límite', many: 'proyectos sin fecha límite' },
+  member_missing_in_team: {
+    one: 'persona con tareas que no figura en la hoja Team',
+    many: 'personas con tareas que no figuran en la hoja Team',
+  },
+  possible_duplicate: {
+    one: 'proyecto que parece duplicado',
+    many: 'proyectos que parecen duplicados',
+  },
+  dependency_unresolved: {
+    one: 'dependencia que apunta a una tarea inexistente',
+    many: 'dependencias que apuntan a una tarea inexistente',
+  },
+  zero_length_window: {
+    one: 'proyecto que vence el día que arranca',
+    many: 'proyectos que vencen el día que arrancan',
+  },
+  value_converted: {
+    one: 'valor convertido de pesos a dólares',
+    many: 'valores convertidos de pesos a dólares',
+  },
+  value_missing: {
+    one: 'proyecto sin valor de negocio',
+    many: 'proyectos sin valor de negocio',
+  },
+  date_format_mixed: {
+    one: 'fecha con formato distinto al del resto de la columna',
+    many: 'fechas con formato distinto al del resto de la columna',
+  },
+  junk_rows_skipped: { one: 'fila de prueba descartada', many: 'filas de prueba descartadas' },
+  absent_in_source: {
+    one: 'proyecto que ya no viene en la fuente',
+    many: 'proyectos que ya no vienen en la fuente',
+  },
+  orphan_task: {
+    one: 'tarea que apunta a un proyecto inexistente',
+    many: 'tareas que apuntan a un proyecto inexistente',
+  },
 }
 
-function codeLabel(code: string): string {
-  return CODE_LABELS[code] ?? code.replace(/_/g, ' ')
+/** Las etiquetas son frases con sujeto, así que necesitan concordar en número: sin esto el
+ *  resumen decía "1 proyectos que parecen duplicados". */
+function codeLabel(code: string, count = 2): string {
+  const entry = CODE_LABELS[code]
+  if (!entry) return code.replace(/_/g, ' ')
+  return count === 1 ? entry.one : entry.many
 }
 
 /**
  * Estos códigos son la prueba de que la fuente contradice sus propios campos declarados
- * (DATASET-HALLAZGOS.md §2 y §6) — la evidencia que sostiene la tesis del sistema. El resto
+ * (`is_overdue` que se desmiente a sí mismo, conteos que no cuadran, un miembro del equipo
+ * que la pestaña Team omite) — la evidencia que sostiene la tesis del sistema. El resto
  * es aseo de importación (fechas mal formadas, filas vacías, valores faltantes). Antes todo
  * se ordenaba por frecuencia nada más, así que "34 fechas mal declaradas" pesaba lo mismo
  * visualmente que "1 fila de prueba descartada" — se separan para que no compitan.
@@ -85,12 +143,12 @@ export function DataQualityPanel({ issues, lastRun }: DataQualityPanelProps) {
       ? 'Sin hallazgos de calidad de datos.'
       : `${issues.length} hallazgos de calidad` +
         (topCodes.length
-          ? `: ${topCodes.map(([code, n]) => `${n} ${codeLabel(code)}`).join(', ')}` +
+          ? `: ${topCodes.map(([code, n]) => `${n} ${codeLabel(code, n)}`).join(', ')}` +
             (allCodesSorted.length > topCodes.length ? '...' : '')
           : '')
 
   return (
-    <section className="rounded-lg border border-black/10 bg-black/[0.02] dark:border-white/10 dark:bg-white/[0.02]">
+    <Card className="gap-0 bg-muted/30 p-0">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -99,31 +157,33 @@ export function DataQualityPanel({ issues, lastRun }: DataQualityPanelProps) {
         className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left"
       >
         <div className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-foreground/50">
+          <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Calidad de datos
           </span>
-          <span className="truncate text-xs text-foreground/70">{summaryLine}</span>
+          <span className="truncate text-xs text-muted-foreground/90">{summaryLine}</span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {SEVERITY_ORDER.filter((s) => bySeverity.get(s)).map((s) => (
-            <span
-              key={s}
-              className="flex items-center gap-1 rounded-full bg-black/5 px-2 py-0.5 text-[11px] text-foreground/70 dark:bg-white/10"
-            >
+            <Badge key={s} variant="secondary" className="gap-1">
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${SEVERITY_META[s].dot}`} aria-hidden />
               {bySeverity.get(s)}
-            </span>
+              {/* El punto de color era el único portador del nivel: sin esto un lector de
+                  pantalla anunciaba "34, 7, 2" sin saber cuál es error y cuál info. */}
+              <span className="sr-only"> de nivel {SEVERITY_META[s].label}</span>
+            </Badge>
           ))}
-          <span className="text-xs text-foreground/40">{open ? '−' : '+'}</span>
+          <span className="text-xs text-muted-foreground/60" aria-hidden>
+            {open ? '−' : '+'}
+          </span>
         </div>
       </button>
 
       {open && (
-        <div id={panelId} className="border-t border-black/10 px-4 py-3 dark:border-white/10">
+        <div id={panelId} className="border-t px-4 py-3">
           {lastRun && (
-            <p className="mb-3 text-xs text-foreground/50">
-              Ultima importacion: {lastRun.projectsCount} proyectos, {lastRun.tasksCount} tareas, hoy
-              del sistema {lastRun.appToday}.
+            <p className="mb-3 text-xs text-muted-foreground">
+              Última importación: {lastRun.projectsCount} proyectos, {lastRun.tasksCount} tareas, hoy
+              del sistema {formatDate(lastRun.appToday)}.
             </p>
           )}
 
@@ -135,8 +195,8 @@ export function DataQualityPanel({ issues, lastRun }: DataQualityPanelProps) {
               <ul className="flex flex-col gap-1.5">
                 {thesisCodes.map(([code, count]) => (
                   <li key={code} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate text-foreground/70">{codeLabel(code)}</span>
-                    <span className="shrink-0 tabular-nums text-foreground/50">{count}</span>
+                    <span className="truncate text-muted-foreground">{codeLabel(code, count)}</span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground/70">{count}</span>
                   </li>
                 ))}
               </ul>
@@ -145,14 +205,14 @@ export function DataQualityPanel({ issues, lastRun }: DataQualityPanelProps) {
 
           {housekeepingCodes.length > 0 && (
             <div>
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-foreground/40">
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
                 Aseo de importación
               </p>
               <ul className="flex flex-col gap-1.5">
                 {housekeepingCodes.map(([code, count]) => (
                   <li key={code} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate text-foreground/70">{codeLabel(code)}</span>
-                    <span className="shrink-0 tabular-nums text-foreground/50">{count}</span>
+                    <span className="truncate text-muted-foreground">{codeLabel(code, count)}</span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground/70">{count}</span>
                   </li>
                 ))}
               </ul>
@@ -164,53 +224,57 @@ export function DataQualityPanel({ issues, lastRun }: DataQualityPanelProps) {
               <button
                 type="button"
                 onClick={() => setShowAll((v) => !v)}
-                className="text-xs font-medium text-foreground/60 underline decoration-dotted underline-offset-2 hover:text-foreground"
+                className="text-xs font-medium text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
               >
                 {showAll ? 'Ocultar detalle completo' : `Ver los ${issues.length} hallazgos`}
               </button>
 
               {showAll && (
-                <div className="mt-2 max-h-72 overflow-y-auto rounded border border-black/10 dark:border-white/10">
-                  <table className="w-full text-left text-xs">
-                    <thead className="sticky top-0 bg-background text-foreground/50">
-                      <tr>
-                        <th className="px-2 py-1 font-medium">Severidad</th>
-                        <th className="px-2 py-1 font-medium">Codigo</th>
-                        <th className="px-2 py-1 font-medium">Entidad</th>
-                        <th className="px-2 py-1 font-medium">Mensaje</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {issues.map((issue) => (
-                        <tr key={issue.id} className="border-t border-black/5 dark:border-white/5">
-                          <td className="whitespace-nowrap px-2 py-1 align-top">
-                            <span className="flex items-center gap-1">
-                              <span
-                                className={`inline-block h-1.5 w-1.5 rounded-full ${
-                                  SEVERITY_META[issue.severity]?.dot ?? 'bg-foreground/30'
-                                }`}
-                                aria-hidden
-                              />
-                              {SEVERITY_META[issue.severity]?.label ?? issue.severity}
-                            </span>
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-1 align-top text-foreground/70">
-                            {codeLabel(issue.code)}
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-1 align-top text-foreground/60">
-                            {issue.entityCode ?? '-'}
-                          </td>
-                          <td className="px-2 py-1 align-top text-foreground/70">{issue.message}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <Card className="mt-2 gap-0 p-0">
+                  <ScrollArea className="max-h-72">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Severidad</TableHead>
+                          <TableHead>Código</TableHead>
+                          <TableHead>Entidad</TableHead>
+                          <TableHead>Mensaje</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {issues.map((issue) => (
+                          <TableRow key={issue.id}>
+                            <TableCell className="whitespace-nowrap align-top">
+                              <span className="flex items-center gap-1">
+                                <span
+                                  className={`inline-block h-1.5 w-1.5 rounded-full ${
+                                    SEVERITY_META[issue.severity]?.dot ?? 'bg-foreground/30'
+                                  }`}
+                                  aria-hidden
+                                />
+                                {SEVERITY_META[issue.severity]?.label ?? issue.severity}
+                              </span>
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap align-top text-muted-foreground">
+                              {codeLabel(issue.code, 1)}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap align-top text-muted-foreground">
+                              {issue.entityCode ?? '-'}
+                            </TableCell>
+                            <TableCell className="align-top text-muted-foreground">
+                              {issue.message}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </Card>
               )}
             </div>
           )}
         </div>
       )}
-    </section>
+    </Card>
   )
 }

@@ -4,6 +4,8 @@ import { AlertStrip } from '@/components/AlertStrip'
 import { DataQualityPanel } from '@/components/DataQualityPanel'
 import { Queues } from '@/components/Queues'
 import { WorkloadSidebar } from '@/components/WorkloadSidebar'
+import { buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,18 +26,15 @@ export default async function Home() {
 
   return (
     <div className="flex flex-1 flex-col bg-background text-foreground">
-      <header className="border-b border-black/10 px-6 py-4 dark:border-white/10">
+      <header className="border-b px-6 py-4">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Aztec Ops Console</h1>
-            <p className="text-sm text-foreground/60">
+            <p className="text-sm text-muted-foreground">
               Hoy: {dashboard.now} · qué atender primero, en qué orden y por qué.
             </p>
           </div>
-          <Link
-            href="/proyectos/nuevo"
-            className="shrink-0 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
-          >
+          <Link href="/proyectos/nuevo" className={cn(buttonVariants(), 'shrink-0')}>
             + Nuevo proyecto
           </Link>
         </div>

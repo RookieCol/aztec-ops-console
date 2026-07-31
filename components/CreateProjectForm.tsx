@@ -4,13 +4,16 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { PROJECT_STATUSES, PRIORITY_LABELS, ENGAGEMENT_TYPES } from '@/lib/config'
 import { createProject } from '@/lib/actions'
+import { displayLabel } from '@/lib/format'
+import { AUTO_PRIORITY, AUTO_PRIORITY_LABEL } from '@/lib/ui-tokens'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { Field } from '@/components/Field'
 
 export type CreateProjectFormProps = Record<string, never>
-
-const inputClass =
-  'w-full rounded-md border border-black/15 bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10 dark:border-white/15'
-
-const labelClass = 'text-xs font-medium text-foreground/60'
 
 /**
  * Formulario de creación de un proyecto nuevo. Los 7 campos que el enunciado pide guardar
@@ -29,7 +32,7 @@ export function CreateProjectForm() {
   const [targetDate, setTargetDate] = useState('')
   const [businessValue, setBusinessValue] = useState('')
   const [status, setStatus] = useState<string>('Activo')
-  const [priorityOverride, setPriorityOverride] = useState('')
+  const [priorityOverride, setPriorityOverride] = useState(AUTO_PRIORITY)
   const [nextStep, setNextStep] = useState('')
   const [notes, setNotes] = useState('')
   const [blockers, setBlockers] = useState('')
@@ -57,7 +60,7 @@ export function CreateProjectForm() {
           targetDate: targetDate || null,
           businessValue: parsedValue,
           status,
-          priorityOverride: priorityOverride || null,
+          priorityOverride: priorityOverride === AUTO_PRIORITY ? null : priorityOverride,
           nextStep: nextStep || null,
           notes: notes || null,
           blockers: blockers || null,
@@ -70,159 +73,174 @@ export function CreateProjectForm() {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex max-w-2xl flex-col gap-4 rounded-lg border border-black/10 p-4 dark:border-white/10"
-    >
-      <h1 className="text-lg font-semibold tracking-tight text-foreground">Nuevo proyecto</h1>
+    <Card className="max-w-2xl p-4">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <h1 className="text-lg font-semibold tracking-tight text-foreground">Nuevo proyecto</h1>
 
-      <label className="flex flex-col gap-1">
-        <span className={labelClass}>Nombre *</span>
-        <input
-          className={inputClass}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Nombre del proyecto"
-          required
-        />
-      </label>
+        <Field label="Nombre *">
+          {(id) => (
+            <Input
+              id={id}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Nombre del proyecto"
+              required
+            />
+          )}
+        </Field>
 
-      <label className="flex flex-col gap-1">
-        <span className={labelClass}>Cliente *</span>
-        <input
-          className={inputClass}
-          value={clientAlias}
-          onChange={(e) => setClientAlias(e.target.value)}
-          placeholder="Alias del cliente"
-          required
-        />
-      </label>
+        <Field label="Cliente *">
+          {(id) => (
+            <Input
+              id={id}
+              value={clientAlias}
+              onChange={(e) => setClientAlias(e.target.value)}
+              placeholder="Alias del cliente"
+              required
+            />
+          )}
+        </Field>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-1">
-          <span className={labelClass}>Tipo de trabajo *</span>
-          <select
-            className={inputClass}
-            value={engagementType}
-            onChange={(e) => setEngagementType(e.target.value)}
-          >
-            {ENGAGEMENT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Tipo de trabajo *">
+            {(id) => (
+              <Select
+                value={engagementType}
+                onValueChange={(v) => setEngagementType(v ?? ENGAGEMENT_TYPES[0])}
+              >
+                <SelectTrigger id={id} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ENGAGEMENT_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {displayLabel(t)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </Field>
 
-        <label className="flex flex-col gap-1">
-          <span className={labelClass}>Responsable</span>
-          <input
-            className={inputClass}
-            value={ownerAlias}
-            onChange={(e) => setOwnerAlias(e.target.value)}
-            placeholder="Alias del responsable"
-          />
-        </label>
+          <Field label="Responsable">
+            {(id) => (
+              <Input
+                id={id}
+                value={ownerAlias}
+                onChange={(e) => setOwnerAlias(e.target.value)}
+                placeholder="Alias del responsable"
+              />
+            )}
+          </Field>
 
-        <label className="flex flex-col gap-1">
-          <span className={labelClass}>Fecha límite</span>
-          <input
-            type="date"
-            className={inputClass}
-            value={targetDate}
-            onChange={(e) => setTargetDate(e.target.value)}
-          />
-        </label>
+          <Field label="Fecha límite">
+            {(id) => (
+              <Input
+                id={id}
+                type="date"
+                value={targetDate}
+                onChange={(e) => setTargetDate(e.target.value)}
+              />
+            )}
+          </Field>
 
-        <label className="flex flex-col gap-1">
-          <span className={labelClass}>Valor de negocio (USD)</span>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            className={inputClass}
-            value={businessValue}
-            onChange={(e) => setBusinessValue(e.target.value)}
-            placeholder="Ej. 50000"
-          />
-        </label>
+          <Field label="Valor de negocio (USD)">
+            {(id) => (
+              <Input
+                id={id}
+                type="number"
+                min="0"
+                step="1"
+                value={businessValue}
+                onChange={(e) => setBusinessValue(e.target.value)}
+                placeholder="Ej. 50000"
+              />
+            )}
+          </Field>
 
-        <label className="flex flex-col gap-1">
-          <span className={labelClass}>Estado inicial</span>
-          <select
-            className={inputClass}
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-          >
-            {PROJECT_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
+          <Field label="Estado inicial">
+            {(id) => (
+              <Select value={status} onValueChange={(v) => setStatus(v ?? 'Activo')}>
+                <SelectTrigger id={id} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROJECT_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </Field>
 
-        <label className="flex flex-col gap-1">
-          <span className={labelClass}>Prioridad inicial</span>
-          <select
-            className={inputClass}
-            value={priorityOverride}
-            onChange={(e) => setPriorityOverride(e.target.value)}
-          >
-            <option value="">Sin fijar (derivada automáticamente)</option>
-            {PRIORITY_LABELS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+          <Field label="Prioridad inicial">
+            {(id) => (
+              <Select
+                value={priorityOverride}
+                onValueChange={(v) => setPriorityOverride(v ?? AUTO_PRIORITY)}
+              >
+                <SelectTrigger id={id} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={AUTO_PRIORITY}>{AUTO_PRIORITY_LABEL}</SelectItem>
+                  {PRIORITY_LABELS.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {displayLabel(p)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </Field>
+        </div>
 
-      <label className="flex flex-col gap-1">
-        <span className={labelClass}>Siguiente paso</span>
-        <textarea
-          className={inputClass}
-          rows={2}
-          value={nextStep}
-          onChange={(e) => setNextStep(e.target.value)}
-          placeholder="Qué sigue para este proyecto"
-        />
-      </label>
+        <Field label="Siguiente paso">
+          {(id) => (
+            <Textarea
+              id={id}
+              rows={2}
+              value={nextStep}
+              onChange={(e) => setNextStep(e.target.value)}
+              placeholder="Qué sigue para este proyecto"
+            />
+          )}
+        </Field>
 
-      <label className="flex flex-col gap-1">
-        <span className={labelClass}>Notas</span>
-        <textarea
-          className={inputClass}
-          rows={3}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Contexto adicional"
-        />
-      </label>
+        <Field label="Notas">
+          {(id) => (
+            <Textarea
+              id={id}
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Contexto adicional"
+            />
+          )}
+        </Field>
 
-      <label className="flex flex-col gap-1">
-        <span className={labelClass}>Bloqueos</span>
-        <textarea
-          className={inputClass}
-          rows={2}
-          value={blockers}
-          onChange={(e) => setBlockers(e.target.value)}
-          placeholder="Qué está bloqueando a este proyecto, si algo lo está"
-        />
-      </label>
+        <Field label="Bloqueos">
+          {(id) => (
+            <Textarea
+              id={id}
+              rows={2}
+              value={blockers}
+              onChange={(e) => setBlockers(e.target.value)}
+              placeholder="Qué está bloqueando a este proyecto, si algo lo está"
+            />
+          )}
+        </Field>
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div>
-        <button
-          type="submit"
-          disabled={isPending}
-          className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isPending ? 'Creando…' : 'Crear proyecto'}
-        </button>
-      </div>
-    </form>
+        <div>
+          <Button type="submit" disabled={isPending}>
+            {isPending ? 'Creando…' : 'Crear proyecto'}
+          </Button>
+        </div>
+      </form>
+    </Card>
   )
 }

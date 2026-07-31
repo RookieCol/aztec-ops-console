@@ -1,57 +1,24 @@
 import Link from 'next/link'
-import type { FlagKind, ProjectView } from '@/lib/engine/types'
+import type { ProjectView } from '@/lib/engine/types'
+import { formatUsd } from '@/lib/format'
+import { ENGAGEMENT_ACCENT, FLAG_META, PROJECT_STATUS_CHIP, QUEUE_TITLES } from '@/lib/ui-tokens'
+import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { ScoreBreakdown } from './ScoreBreakdown'
 
 export type QueuesProps = {
   groups: { engagementType: string; views: ProjectView[] }[]
 }
 
-const QUEUE_TITLES: Record<string, string> = {
-  Proyecto: 'Proyectos',
-  Diagnostico: 'Diagnósticos',
-  'Mantenimiento o recurrente': 'Mantenimiento',
-}
-
-const COLUMN_ACCENT: Record<string, string> = {
-  Proyecto: 'border-t-sky-500 dark:border-t-sky-400',
-  Diagnostico: 'border-t-violet-500 dark:border-t-violet-400',
-  'Mantenimiento o recurrente': 'border-t-emerald-500 dark:border-t-emerald-400',
-}
-
-/** Chips planos (sin borde, fondo tenue) — antes eran pills con borde que, repetidos en
- * casi cada tarjeta, saturaban la columna de color. */
-const FLAG_BADGE: Record<FlagKind, { label: string; className: string }> = {
-  bloqueado: { label: 'Bloqueado', className: 'bg-red-500/15 text-red-700 dark:text-red-400' },
-  en_riesgo: { label: 'En riesgo', className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400' },
-  sin_siguiente_paso: {
-    label: 'Sin siguiente paso',
-    className: 'bg-slate-500/15 text-slate-700 dark:text-slate-300',
-  },
-}
-
-/** Solo se muestra si NO es "Activo" — ese es el estado esperado de la mayoría, mostrarlo
- * en todas las tarjetas era ruido sin información. */
-const STATUS_BADGE: Record<string, string> = {
-  'En pausa': 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
-  Bloqueado: 'bg-red-500/15 text-red-700 dark:text-red-400',
-  Cerrado: 'bg-foreground/10 text-foreground/60',
-}
-
-function formatUsd(value: number | null): string {
-  if (value === null) return 'valor desconocido'
-  return value.toLocaleString('es-CO', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  })
-}
-
 function QueueRow({ view }: { view: ProjectView }) {
   const { project, fields, flags, score } = view
-  const statusClass = STATUS_BADGE[fields.status]
+  const statusClass = PROJECT_STATUS_CHIP[fields.status]
 
   return (
-    <li className="rounded-lg border border-black/10 bg-background transition-colors hover:border-black/20 dark:border-white/10 dark:hover:border-white/20">
+    <Card
+      size="sm"
+      className="gap-0 p-0 ring-1 transition-colors hover:ring-foreground/20"
+    >
       <details className="group">
         <summary className="flex cursor-pointer list-none flex-col gap-1.5 px-3 py-2.5 marker:hidden [&::-webkit-details-marker]:hidden">
           <div className="flex items-start justify-between gap-2">
@@ -68,47 +35,52 @@ function QueueRow({ view }: { view: ProjectView }) {
             >
               {project.name}
             </Link>
-            <span className="shrink-0 rounded-md bg-black/5 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-foreground dark:bg-white/10">
+            {/* Igual que "sev" en la franja de alertas: el número sin etiqueta se confunde
+                con un conteo. Acá el ancho no da para la palabra completa, así que la lleva
+                el tooltip y el lector de pantalla. */}
+            <Badge
+              variant="secondary"
+              className="shrink-0 font-semibold tabular-nums"
+              title={`Score de priorización ${score.total.toFixed(1)} de 100`}
+              aria-label={`Score de priorización ${score.total.toFixed(1)} de 100`}
+            >
               {score.total.toFixed(1)}
-            </span>
+            </Badge>
           </div>
 
-          <p className="truncate text-xs text-foreground/60">
+          <p className="truncate text-xs text-muted-foreground">
             {project.clientAlias} · {project.ownerAlias ?? 'sin responsable'}
           </p>
 
           <div className="flex flex-wrap items-center gap-1.5">
             {flags.map((flag) => (
-              <span
-                key={flag.kind}
-                className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${FLAG_BADGE[flag.kind].className}`}
-              >
-                {FLAG_BADGE[flag.kind].label}
-              </span>
+              <Badge key={flag.kind} variant="outline" className={`border-0 ${FLAG_META[flag.kind].chip}`}>
+                {FLAG_META[flag.kind].badge}
+              </Badge>
             ))}
             {statusClass && (
-              <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusClass}`}>
+              <Badge variant="outline" className={`border-0 ${statusClass}`}>
                 {fields.status}
-              </span>
+              </Badge>
             )}
-            <span className="ml-auto shrink-0 text-[11px] tabular-nums text-foreground/50">
+            <span className="ml-auto shrink-0 text-[11px] tabular-nums text-muted-foreground">
               {formatUsd(project.businessValueUsd)}
             </span>
           </div>
 
-          <span className="text-[11px] text-foreground/40 group-open:hidden">
+          <span className="text-[11px] text-muted-foreground/70 group-open:hidden">
             Ver desglose del score ▾
           </span>
-          <span className="hidden text-[11px] text-foreground/40 group-open:inline">
+          <span className="hidden text-[11px] text-muted-foreground/70 group-open:inline">
             Ocultar desglose ▴
           </span>
         </summary>
 
-        <div className="border-t border-black/10 px-3 pb-3 pt-2 dark:border-white/10">
+        <div className="border-t px-3 pb-3 pt-2">
           <ScoreBreakdown score={score} />
         </div>
       </details>
-    </li>
+    </Card>
   )
 }
 
@@ -122,26 +94,28 @@ function QueueSection({
   const title = QUEUE_TITLES[engagementType] ?? engagementType
 
   return (
-    <section
-      className={`flex min-w-0 flex-1 flex-col gap-3 rounded-lg border border-t-4 border-black/10 bg-black/[0.015] p-3 dark:border-white/10 dark:bg-white/[0.02] ${COLUMN_ACCENT[engagementType] ?? ''}`}
+    <Card
+      className={`min-w-0 flex-1 gap-3 border-t-4 bg-muted/30 p-3 ${ENGAGEMENT_ACCENT[engagementType] ?? ''}`}
     >
       <header className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-        <span className="rounded-full bg-black/5 px-2 py-0.5 text-xs font-medium tabular-nums text-foreground/60 dark:bg-white/10">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <Badge variant="secondary" className="tabular-nums">
           {views.length}
-        </span>
+        </Badge>
       </header>
 
       {views.length === 0 ? (
-        <p className="text-sm text-foreground/50">Sin proyectos en esta cola.</p>
+        <p className="text-sm text-muted-foreground">Sin proyectos en esta cola.</p>
       ) : (
         <ol className="flex flex-col gap-2">
           {views.map((view) => (
-            <QueueRow key={view.project.code} view={view} />
+            <li key={view.project.code}>
+              <QueueRow view={view} />
+            </li>
           ))}
         </ol>
       )}
-    </section>
+    </Card>
   )
 }
 
@@ -155,7 +129,7 @@ function QueueSection({
 export function Queues({ groups }: QueuesProps) {
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold tracking-tight text-foreground">Colas por tipo de trabajo</h1>
+      <h2 className="text-lg font-semibold tracking-tight text-foreground">Colas por tipo de trabajo</h2>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {groups.map((group) => (
           <QueueSection

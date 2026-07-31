@@ -2,49 +2,62 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { UserIcon, CalendarIcon, CornerDownRightIcon } from 'lucide-react'
 import type { ProjectView } from '@/lib/engine/types'
 import type { Task, ImportIssue, ChangeLogEntry } from '@/lib/db/schema'
 import { PROJECT_STATUSES, PRIORITY_LABELS, TASK_STATUSES } from '@/lib/config'
 import { updateProjectFields, setNextStepFromTask, unblockTask } from '@/lib/actions'
 import { cycleTaskCodes } from '@/lib/engine/dependencies'
-import { Modal } from './Modal'
+import { daysOverdue, isOverdue } from '@/lib/clock'
+import { displayLabel, formatDate, formatUsd } from '@/lib/format'
+import {
+  AUTO_PRIORITY,
+  AUTO_PRIORITY_LABEL,
+  NEUTRAL_CHIP,
+  PRIORITY_CHIP,
+  TASK_STATUS_ACCENT,
+} from '@/lib/ui-tokens'
+import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Field } from '@/components/Field'
 
 export type ProjectDetailFormProps = {
   view: ProjectView
   issues: ImportIssue[]
   changeLog: ChangeLogEntry[]
-}
-
-function formatUsd(value: number | null): string {
-  if (value === null || value === undefined) return 'desconocido'
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(value)
-}
-
-const PRIORITY_DOT: Record<string, string> = {
-  Critica: 'bg-red-600 dark:bg-red-500',
-  Alta: 'bg-orange-500 dark:bg-orange-400',
-  Media: 'bg-amber-400 dark:bg-amber-500',
-  Baja: 'bg-slate-400 dark:bg-slate-500',
-}
-
-const COLUMN_ACCENT: Record<string, string> = {
-  'Por hacer': 'border-t-slate-400 dark:border-t-slate-500',
-  'En progreso': 'border-t-sky-500 dark:border-t-sky-400',
-  'En revision': 'border-t-amber-500 dark:border-t-amber-400',
-  Bloqueada: 'border-t-red-600 dark:border-t-red-500',
+  /** Fecha de referencia resuelta en el servidor — ver comentario en la página que la pasa. */
+  now: string
 }
 
 /**
  * Tarjeta de tarea (tablero Kanban) — de solo lectura + las 2 acciones puntuales, con todos
  * los campos de detalle que existen en el dato (rol, de qué depende, detalle). `detail` y
- * `lastProgress` son siempre idénticos en este dataset (DATASET-HALLAZGOS.md §5: 82 de 82
- * filas) — se muestra uno solo en vez de duplicar el mismo párrafo dos veces.
+ * `lastProgress` traen exactamente el mismo texto en las 82 filas del dataset, así que se
+ * muestra uno solo en vez de duplicar el mismo párrafo dos veces.
  */
-function TaskCard({ task, projectCode, inCycle }: { task: Task; projectCode: string; inCycle: boolean }) {
+function TaskCard({
+  task,
+  projectCode,
+  inCycle,
+  now,
+}: {
+  task: Task
+  projectCode: string
+  inCycle: boolean
+  now: string
+}) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<'unblocked' | 'nextstep' | null>(null)
@@ -77,68 +90,99 @@ function TaskCard({ task, projectCode, inCycle }: { task: Task; projectCode: str
   }
 
   const detail = task.detail ?? task.lastProgress
+  const overdue = isOverdue(task.dueDate, now)
+  const lateDays = overdue ? daysOverdue(task.dueDate, now) : 0
 
   return (
-    <li
-      className={`flex flex-col gap-2 rounded-md border bg-background px-3 py-2.5 shadow-sm ${
-        inCycle
-          ? 'border-red-300 dark:border-red-900/60'
-          : 'border-black/10 dark:border-white/10'
-      }`}
+    <Card
+      size="sm"
+      className={`gap-2.5 p-3 ${inCycle ? 'ring-2 ring-red-300 dark:ring-red-900/60' : 'ring-1'}`}
     >
-      <div className="flex items-start gap-2">
-        <span
-          className={`mt-1 inline-block h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[task.priority] ?? 'bg-foreground/30'}`}
-          aria-hidden
-          title={`Prioridad ${task.priority}`}
-        />
-        <span className="min-w-0 flex-1 text-sm font-medium text-foreground">{task.title}</span>
+      <p className="text-sm leading-snug font-medium text-foreground">{task.title}</p>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Badge
+          variant="outline"
+          className={`border-0 ${PRIORITY_CHIP[task.priority] ?? NEUTRAL_CHIP}`}
+        >
+          {displayLabel(task.priority)}
+        </Badge>
+        {inCycle && (
+          <Badge variant="outline" className="border-0 bg-red-500/15 text-red-700 dark:text-red-300">
+            Ciclo de dependencias
+          </Badge>
+        )}
       </div>
 
-      {inCycle && (
-        <span className="w-fit rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
-          Ciclo de dependencias
-        </span>
-      )}
+      {/* Metadatos en filas propias con icono, en vez de una sola línea con separadores "·":
+          asignado y fecha son los dos datos que se escanean primero y antes competían con la
+          prioridad en el mismo párrafo gris. */}
+      <dl className="flex flex-col gap-1 text-xs">
+        {task.assigneeAlias && (
+          <div className="flex items-center gap-1.5">
+            <dt className="sr-only">Asignado a</dt>
+            <UserIcon className="size-3.5 shrink-0 text-muted-foreground/60" aria-hidden />
+            <dd className="min-w-0 truncate text-foreground/90">
+              {task.assigneeAlias}
+              {task.assigneeRole && (
+                <span className="text-muted-foreground"> · {task.assigneeRole}</span>
+              )}
+            </dd>
+          </div>
+        )}
 
-      <p className="text-xs text-foreground/60">
-        prioridad {task.priority}
-        {task.assigneeAlias
-          ? ` · ${task.assigneeAlias}${task.assigneeRole ? ` (${task.assigneeRole})` : ''}`
-          : ''}
-        {task.dueDate ? ` · vence ${task.dueDate}` : ''}
-      </p>
+        {task.dueDate && (
+          <div className="flex items-center gap-1.5">
+            <dt className="sr-only">Fecha límite</dt>
+            <CalendarIcon
+              className={`size-3.5 shrink-0 ${overdue ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground/60'}`}
+              aria-hidden
+            />
+            <dd className={overdue ? 'font-medium text-red-600 dark:text-red-400' : 'text-foreground/90'}>
+              {formatDate(task.dueDate)}
+              {overdue && (
+                <span className="font-normal">
+                  {' '}
+                  · vencida hace {lateDays} {lateDays === 1 ? 'día' : 'días'}
+                </span>
+              )}
+            </dd>
+          </div>
+        )}
 
-      {task.dependencyTitle && (
-        <p className="text-xs text-foreground/60">
-          <span className="font-medium">Depende de:</span> {task.dependencyTitle}
+        {task.dependencyTitle && (
+          <div className="flex items-start gap-1.5">
+            <CornerDownRightIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60" aria-hidden />
+            <dt className="shrink-0 text-muted-foreground">depende de</dt>
+            <dd className="min-w-0 text-foreground/90">{task.dependencyTitle}</dd>
+          </div>
+        )}
+      </dl>
+
+      {detail && (
+        <p className="border-l-2 pl-2 text-xs leading-relaxed text-muted-foreground">
+          {detail}
         </p>
       )}
 
-      {detail && <p className="text-xs text-foreground/70">{detail}</p>}
-
-      <div className="flex flex-wrap gap-2 pt-1">
+      <div className="flex flex-wrap gap-2 pt-0.5">
         {task.status === 'Bloqueada' && (
-          <button
+          <Button
             type="button"
+            variant="destructive"
+            size="sm"
             onClick={handleUnblock}
             disabled={isPending}
-            className="rounded-md border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
           >
             {isPending ? 'Desbloqueando…' : 'Desbloquear'}
-          </button>
+          </Button>
         )}
-        <button
-          type="button"
-          onClick={handleUseAsNextStep}
-          disabled={isPending}
-          className="rounded-md border border-black/10 px-2.5 py-1 text-xs font-medium text-foreground/80 transition-colors hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/10"
-        >
+        <Button type="button" variant="outline" size="sm" onClick={handleUseAsNextStep} disabled={isPending}>
           {isPending ? 'Guardando…' : 'Usar como siguiente paso'}
-        </button>
+        </Button>
       </div>
 
-      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
       {done === 'unblocked' && !error && (
         <p className="text-xs text-emerald-600 dark:text-emerald-400">Tarea desbloqueada.</p>
       )}
@@ -147,7 +191,7 @@ function TaskCard({ task, projectCode, inCycle }: { task: Task; projectCode: str
           Siguiente paso del proyecto actualizado.
         </p>
       )}
-    </li>
+    </Card>
   )
 }
 
@@ -157,7 +201,7 @@ function TaskCard({ task, projectCode, inCycle }: { task: Task; projectCode: str
  * ciclo de dependencias (PRJ-04: T02 <-> T03) se marcan con un badge rojo en su propia
  * tarjeta — el ciclo importa sin importar en qué columna de estado caiga cada una.
  */
-function TaskBoard({ tasks, projectCode }: { tasks: Task[]; projectCode: string }) {
+function TaskBoard({ tasks, projectCode, now }: { tasks: Task[]; projectCode: string; now: string }) {
   const cyclesSet = useMemo(() => cycleTaskCodes(tasks), [tasks])
 
   return (
@@ -165,41 +209,38 @@ function TaskBoard({ tasks, projectCode }: { tasks: Task[]; projectCode: string 
       {TASK_STATUSES.map((status) => {
         const column = tasks.filter((t) => t.status === status)
         return (
-          <div
+          <Card
             key={status}
-            className={`flex flex-col gap-3 rounded-lg border border-t-4 border-black/10 bg-black/[0.015] p-3 dark:border-white/10 dark:bg-white/[0.02] ${COLUMN_ACCENT[status] ?? ''}`}
+            className={`gap-3 border-t-4 bg-muted/30 p-3 ${TASK_STATUS_ACCENT[status] ?? ''}`}
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">{status}</h3>
-              <span className="rounded-full bg-black/5 px-2 py-0.5 text-xs font-medium text-foreground/60 dark:bg-white/10">
+              <h3 className="text-sm font-semibold text-foreground">{displayLabel(status)}</h3>
+              <Badge variant="secondary" className="tabular-nums">
                 {column.length}
-              </span>
+              </Badge>
             </div>
             {column.length === 0 ? (
-              <p className="text-xs text-foreground/40">Sin tareas</p>
+              <p className="text-xs text-muted-foreground/70">Sin tareas</p>
             ) : (
               <ul className="flex flex-col gap-2">
                 {column.map((task) => (
-                  <TaskCard
-                    key={task.code}
-                    task={task}
-                    projectCode={projectCode}
-                    inCycle={cyclesSet.has(task.code)}
-                  />
+                  <li key={task.code}>
+                    <TaskCard
+                      task={task}
+                      projectCode={projectCode}
+                      inCycle={cyclesSet.has(task.code)}
+                      now={now}
+                    />
+                  </li>
                 ))}
               </ul>
             )}
-          </div>
+          </Card>
         )
       })}
     </div>
   )
 }
-
-const inputClass =
-  'w-full rounded-md border border-black/15 bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10 dark:border-white/15'
-
-const labelClass = 'text-xs font-medium text-foreground/60'
 
 /**
  * Pantalla de detalle de un proyecto. Las tareas son el canvas principal, en un tablero tipo
@@ -209,13 +250,13 @@ const labelClass = 'text-xs font-medium text-foreground/60'
  * edición es una acción puntual, no algo que deba competir por espacio en pantalla con el
  * tablero.
  */
-export function ProjectDetailForm({ view, issues, changeLog }: ProjectDetailFormProps) {
+export function ProjectDetailForm({ view, issues, changeLog, now }: ProjectDetailFormProps) {
   const { project, fields, tasks, declaredMismatch, flags } = view
   const router = useRouter()
 
   const [modalOpen, setModalOpen] = useState(false)
   const [status, setStatus] = useState(fields.status)
-  const [priorityOverride, setPriorityOverride] = useState<string>(fields.priorityOverride ?? '')
+  const [priorityOverride, setPriorityOverride] = useState<string>(fields.priorityOverride ?? AUTO_PRIORITY)
   const [nextStep, setNextStep] = useState(fields.nextStep ?? '')
   const [notes, setNotes] = useState(fields.notes ?? '')
   const [ownerAlias, setOwnerAlias] = useState(project.ownerAlias ?? '')
@@ -229,7 +270,7 @@ export function ProjectDetailForm({ view, issues, changeLog }: ProjectDetailForm
     // Sincroniza con los valores persistidos por si quedó algo tipeado de una edición
     // cancelada antes: cada apertura arranca desde lo que realmente hay guardado.
     setStatus(fields.status)
-    setPriorityOverride(fields.priorityOverride ?? '')
+    setPriorityOverride(fields.priorityOverride ?? AUTO_PRIORITY)
     setNextStep(fields.nextStep ?? '')
     setNotes(fields.notes ?? '')
     setOwnerAlias(project.ownerAlias ?? '')
@@ -247,7 +288,7 @@ export function ProjectDetailForm({ view, issues, changeLog }: ProjectDetailForm
         await updateProjectFields({
           code: project.code,
           status,
-          priorityOverride: priorityOverride || null,
+          priorityOverride: priorityOverride === AUTO_PRIORITY ? null : priorityOverride,
           nextStep: nextStep || null,
           notes: notes || null,
           ownerAlias: ownerAlias.trim() || null,
@@ -264,235 +305,244 @@ export function ProjectDetailForm({ view, issues, changeLog }: ProjectDetailForm
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="flex flex-col gap-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-lg font-semibold tracking-tight text-foreground">{project.name}</h1>
-            {project.isExample && (
-              <span className="rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-medium text-foreground/60 dark:bg-white/10">
-                Proyecto de ejemplo
-              </span>
+      {/* Cabecera compacta: antes eran 7 campos en 2 columnas sobre 1280px, con la etiqueta
+          encima de cada valor — 4 filas de alto y muchísimo ancho vacío para valores de una
+          palabra. Ahora la rejilla se densifica hasta 4 columnas y el resumen va bajo el
+          título como descripción, sin una etiqueta que gastaba otro renglón. */}
+      <Card className="gap-3 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg font-semibold tracking-tight text-foreground">{project.name}</h1>
+              {project.isExample && <Badge variant="secondary">Proyecto de ejemplo</Badge>}
+            </div>
+            {project.summary && (
+              <p className="mt-0.5 text-sm text-muted-foreground">{project.summary}</p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={openEditModal}
-            className="shrink-0 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
-          >
+          <Button type="button" onClick={openEditModal} className="shrink-0">
             Editar proyecto
-          </button>
+          </Button>
         </div>
 
-        <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-4">
           <div>
-            <dt className={labelClass}>Cliente</dt>
-            <dd className="text-foreground">{project.clientAlias}</dd>
+            <dt className="text-xs text-muted-foreground">Cliente</dt>
+            <dd className="truncate text-foreground">{project.clientAlias}</dd>
           </div>
           <div>
-            <dt className={labelClass}>Tipo de trabajo</dt>
-            <dd className="text-foreground">{project.engagementType}</dd>
+            <dt className="text-xs text-muted-foreground">Tipo de trabajo</dt>
+            <dd className="truncate text-foreground">{displayLabel(project.engagementType)}</dd>
           </div>
           <div>
-            <dt className={labelClass}>Estado</dt>
+            <dt className="text-xs text-muted-foreground">Estado</dt>
             <dd className="text-foreground">{fields.status}</dd>
           </div>
           <div>
-            <dt className={labelClass}>Responsable</dt>
-            <dd className="text-foreground">{project.ownerAlias ?? 'sin asignar'}</dd>
+            <dt className="text-xs text-muted-foreground">Responsable</dt>
+            <dd className="truncate text-foreground">{project.ownerAlias ?? 'sin asignar'}</dd>
           </div>
           <div>
-            <dt className={labelClass}>Fecha límite</dt>
-            <dd className="text-foreground">{project.targetDate ?? 'sin fecha'}</dd>
+            <dt className="text-xs text-muted-foreground">Fecha límite</dt>
+            <dd className="text-foreground">{formatDate(project.targetDate)}</dd>
           </div>
           <div>
-            <dt className={labelClass}>Valor de negocio</dt>
+            <dt className="text-xs text-muted-foreground">Valor de negocio</dt>
             <dd className="text-foreground">{formatUsd(project.businessValueUsd)}</dd>
           </div>
           <div>
-            <dt className={labelClass}>Código</dt>
-            <dd className="font-mono text-foreground/70">{project.code}</dd>
+            <dt className="text-xs text-muted-foreground">Código</dt>
+            <dd className="font-mono text-muted-foreground">{project.code}</dd>
           </div>
         </dl>
-
-        {project.summary && (
-          <div>
-            <p className={labelClass}>Resumen (solo lectura)</p>
-            <p className="text-sm text-foreground/80">{project.summary}</p>
-          </div>
-        )}
-      </section>
+      </Card>
 
       {(declaredMismatch.healthVsFlags || declaredMismatch.overdueTasksCount) && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50/60 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+        <Alert className="border-amber-300 bg-amber-50/60 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
           {declaredMismatch.healthVsFlags && (
             <>
-              <p className="font-semibold">
+              <AlertTitle>
                 Declarado &quot;{project.declaredHealth ?? 'Sano'}&quot; pero el sistema detecta:
-              </p>
-              <ul className="mt-1 list-inside list-disc">
-                {flags.flatMap((f) => f.reasons).map((reason, i) => (
-                  <li key={i}>{reason}</li>
-                ))}
-              </ul>
+              </AlertTitle>
+              <AlertDescription className="text-amber-900/90 dark:text-amber-200/90">
+                <ul className="list-inside list-disc">
+                  {flags.flatMap((f) => f.reasons).map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
             </>
           )}
           {declaredMismatch.overdueTasksCount && (
-            <p className={declaredMismatch.healthVsFlags ? 'mt-2' : 'font-semibold'}>
-              Tareas vencidas: la fuente declaraba {declaredMismatch.overdueTasksCount.declared},
-              hoy son {declaredMismatch.overdueTasksCount.real}.
-            </p>
+            <AlertTitle className={declaredMismatch.healthVsFlags ? 'mt-2' : ''}>
+              Tareas vencidas: la fuente declaraba {declaredMismatch.overdueTasksCount.declared}, hoy son{' '}
+              {declaredMismatch.overdueTasksCount.real}.
+            </AlertTitle>
           )}
-        </div>
+        </Alert>
       )}
 
       {issues.length > 0 && (
-        <div className="rounded-lg border border-sky-200 bg-sky-50/50 px-4 py-3 text-sm text-sky-900 dark:border-sky-900/40 dark:bg-sky-950/20 dark:text-sky-200">
-          <p className="font-semibold">Notas de calidad de datos ({issues.length})</p>
-          <ul className="mt-1 list-inside list-disc">
-            {issues.map((issue) => (
-              <li key={issue.id}>{issue.message}</li>
-            ))}
-          </ul>
-        </div>
+        <Alert className="border-sky-200 bg-sky-50/50 text-sky-900 dark:border-sky-900/40 dark:bg-sky-950/20 dark:text-sky-200">
+          <AlertTitle>Notas de calidad de datos ({issues.length})</AlertTitle>
+          <AlertDescription className="text-sky-900/90 dark:text-sky-200/90">
+            <ul className="list-inside list-disc">
+              {issues.map((issue) => (
+                <li key={issue.id}>{issue.message}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
       )}
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-foreground">Tareas ({tasks.length})</h2>
         {tasks.length === 0 ? (
-          <p className="text-sm text-foreground/50">Este proyecto no tiene tareas.</p>
+          <p className="text-sm text-muted-foreground">Este proyecto no tiene tareas.</p>
         ) : (
-          <TaskBoard tasks={tasks} projectCode={project.code} />
+          <TaskBoard tasks={tasks} projectCode={project.code} now={now} />
         )}
       </section>
 
       {changeLog.length > 0 && (
-        <section className="rounded-lg border border-black/10 p-4 dark:border-white/10">
+        <Card className="p-4">
           <details>
             <summary className="cursor-pointer text-sm font-semibold text-foreground">
               Historial de cambios ({changeLog.length})
             </summary>
-            <ul className="mt-3 flex flex-col gap-2 text-xs text-foreground/70">
+            <ul className="mt-3 flex flex-col gap-2 text-xs text-muted-foreground">
               {changeLog.map((c) => (
-                <li key={c.id} className="border-b border-black/5 pb-2 last:border-0 dark:border-white/5">
-                  <span className="text-foreground/50">{c.at}</span> · {c.entity} {c.entityCode} ·{' '}
-                  <span className="font-medium">{c.field}</span>: {c.oldValue ?? '(vacío)'} →{' '}
+                <li key={c.id} className="border-b pb-2 last:border-0">
+                  <span className="text-muted-foreground/70">{formatDate(c.at.slice(0, 10))}</span> ·{' '}
+                  {c.entity} {c.entityCode} ·{' '}
+                  <span className="font-medium text-foreground">{c.field}</span>: {c.oldValue ?? '(vacío)'} →{' '}
                   {c.newValue ?? '(vacío)'}
-                  {c.source !== 'ui' && <span className="ml-1 text-foreground/40">({c.source})</span>}
+                  {c.source !== 'ui' && <span className="ml-1 text-muted-foreground/60">({c.source})</span>}
                 </li>
               ))}
             </ul>
           </details>
-        </section>
+        </Card>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Editar proyecto">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="flex flex-col gap-1">
-              <span className={labelClass}>Estado</span>
-              <select
-                className={inputClass}
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-              >
-                {PROJECT_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </label>
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-w-xl sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Editar proyecto</DialogTitle>
+          </DialogHeader>
 
-            <label className="flex flex-col gap-1">
-              <span className={labelClass}>Prioridad</span>
-              <select
-                className={inputClass}
-                value={priorityOverride}
-                onChange={(e) => setPriorityOverride(e.target.value)}
-              >
-                <option value="">Derivada automáticamente</option>
-                {PRIORITY_LABELS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Estado">
+                {(id) => (
+                  <Select value={status} onValueChange={(v) => setStatus(v ?? '')}>
+                    <SelectTrigger id={id} className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROJECT_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </Field>
 
-            <label className="flex flex-col gap-1">
-              <span className={labelClass}>Responsable</span>
-              <input
-                className={inputClass}
-                value={ownerAlias}
-                onChange={(e) => setOwnerAlias(e.target.value)}
-                placeholder="Alias del responsable"
-              />
-            </label>
+              <Field label="Prioridad">
+                {(id) => (
+                  <Select
+                    value={priorityOverride}
+                    onValueChange={(v) => setPriorityOverride(v ?? AUTO_PRIORITY)}
+                  >
+                    <SelectTrigger id={id} className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={AUTO_PRIORITY}>{AUTO_PRIORITY_LABEL}</SelectItem>
+                      {PRIORITY_LABELS.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {displayLabel(p)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </Field>
 
-            <label className="flex flex-col gap-1">
-              <span className={labelClass}>Fecha límite</span>
-              <input
-                type="date"
-                className={inputClass}
-                value={targetDate}
-                onChange={(e) => setTargetDate(e.target.value)}
-              />
-            </label>
-          </div>
+              <Field label="Responsable">
+                {(id) => (
+                  <Input
+                    id={id}
+                    value={ownerAlias}
+                    onChange={(e) => setOwnerAlias(e.target.value)}
+                    placeholder="Alias del responsable"
+                  />
+                )}
+              </Field>
 
-          <label className="flex flex-col gap-1">
-            <span className={labelClass}>Siguiente paso</span>
-            <textarea
-              className={inputClass}
-              rows={2}
-              value={nextStep}
-              onChange={(e) => setNextStep(e.target.value)}
-              placeholder="Qué sigue para este proyecto"
-            />
-          </label>
+              <Field label="Fecha límite">
+                {(id) => (
+                  <Input
+                    id={id}
+                    type="date"
+                    value={targetDate}
+                    onChange={(e) => setTargetDate(e.target.value)}
+                  />
+                )}
+              </Field>
+            </div>
 
-          <label className="flex flex-col gap-1">
-            <span className={labelClass}>Bloqueos</span>
-            <textarea
-              className={inputClass}
-              rows={2}
-              value={blockers}
-              onChange={(e) => setBlockers(e.target.value)}
-              placeholder="Qué está bloqueando a este proyecto, si algo lo está"
-            />
-          </label>
+            <Field label="Siguiente paso">
+              {(id) => (
+                <Textarea
+                  id={id}
+                  rows={2}
+                  value={nextStep}
+                  onChange={(e) => setNextStep(e.target.value)}
+                  placeholder="Qué sigue para este proyecto"
+                />
+              )}
+            </Field>
 
-          <label className="flex flex-col gap-1">
-            <span className={labelClass}>Notas</span>
-            <textarea
-              className={inputClass}
-              rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Contexto adicional"
-            />
-          </label>
+            <Field label="Bloqueos">
+              {(id) => (
+                <Textarea
+                  id={id}
+                  rows={2}
+                  value={blockers}
+                  onChange={(e) => setBlockers(e.target.value)}
+                  placeholder="Qué está bloqueando a este proyecto, si algo lo está"
+                />
+              )}
+            </Field>
 
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            <Field label="Notas">
+              {(id) => (
+                <Textarea
+                  id={id}
+                  rows={3}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Contexto adicional"
+                />
+              )}
+            </Field>
 
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setModalOpen(false)}
-              className="rounded-md border border-black/10 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/10"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isPending}
-              className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isPending ? 'Guardando…' : 'Guardar cambios'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+
+            <DialogFooter className="-mx-4 -mb-4 mt-0">
+              <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? 'Guardando…' : 'Guardar cambios'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
