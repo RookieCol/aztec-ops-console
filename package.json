@@ -1,0 +1,40 @@
+{
+  "name": "aztec-ops-console",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:push": "drizzle-kit push",
+    "db:import": "tsx scripts/import.ts",
+    "db:reset": "rm -f data/aztec.db data/aztec.db-shm data/aztec.db-wal && pnpm db:push && pnpm db:import",
+    "pretest": "pnpm db:reset",
+    "test": "vitest run",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "drizzle-orm": "^0.38.4",
+    "next": "16.2.12",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "drizzle-kit": "^0.30.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.12",
+    "exceljs": "^4.4.0",
+    "husky": "^9.1.7",
+    "tailwindcss": "^4",
+    "tsx": "^4.19.2",
+    "typescript": "^5",
+    "vitest": "^3.0.4"
+  }
+}

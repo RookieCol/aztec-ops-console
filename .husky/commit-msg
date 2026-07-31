@@ -1,0 +1,23 @@
+#!/usr/bin/env sh
+# Quita la firma de co-autoría de Claude del mensaje de commit.
+# Preserva cualquier otro Co-authored-by (humanos) intacto.
+
+MSG_FILE="$1"
+[ -f "$MSG_FILE" ] || exit 0
+
+TMP_FILE="$MSG_FILE.claude-strip"
+
+# -i: insensible a mayúsculas (Co-Authored-By / Co-authored-by)
+# El patrón exige "Claude" tras los dos puntos, así que otros co-autores sobreviven.
+grep -viE '^[[:space:]]*co-authored-by:[[:space:]]*claude' "$MSG_FILE" > "$TMP_FILE" || true
+
+# Recorta las líneas en blanco que quedan al final tras borrar el trailer.
+awk '{ lines[NR] = $0 }
+     END {
+       last = NR
+       while (last > 0 && lines[last] ~ /^[[:space:]]*$/) last--
+       for (i = 1; i <= last; i++) print lines[i]
+     }' "$TMP_FILE" > "$MSG_FILE"
+
+rm -f "$TMP_FILE"
+exit 0
