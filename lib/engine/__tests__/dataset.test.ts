@@ -1,7 +1,7 @@
 /**
  * Test de integración contra el dataset real importado (no fixtures sintéticas).
  * Verifica que el motor reproduce, con la fecha congelada 2026-07-31, los conteos exactos
- * documentados en DATASET-HALLAZGOS.md. Si alguien vuelve a leer `is_overdue`/`declared_health`
+ * verificados sobre el xlsx real. Si alguien vuelve a leer `is_overdue`/`declared_health`
  * del xlsx en vez de recalcular, este test lo detecta.
  *
  * Precondición: `pnpm db:import` corrido contra el xlsx del enunciado (lo hace `pretest`).
@@ -34,7 +34,7 @@ async function loadViews() {
 }
 
 describe('motor de detección contra el dataset real (fecha congelada 2026-07-31)', () => {
-  it('reproduce los conteos exactos de DATASET-HALLAZGOS.md', async () => {
+  it('reproduce los conteos exactos verificados sobre el dataset', async () => {
     const views = await loadViews()
     expect(views).toHaveLength(22)
 

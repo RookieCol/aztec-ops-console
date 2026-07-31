@@ -22,7 +22,6 @@ export const SHEETS = {
 
 /** Vocabulario de estado del sistema. El dataset trae "Activo" en 22 de 22 filas. */
 export const PROJECT_STATUSES = ['Activo', 'En pausa', 'Bloqueado', 'Cerrado'] as const
-export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
 
 export const PRIORITY_LABELS = ['Critica', 'Alta', 'Media', 'Baja'] as const
 export type PriorityLabel = (typeof PRIORITY_LABELS)[number]
@@ -35,4 +34,3 @@ export const ENGAGEMENT_TYPES = [
   'Diagnostico',
   'Mantenimiento o recurrente',
 ] as const
-export type EngagementType = (typeof ENGAGEMENT_TYPES)[number]

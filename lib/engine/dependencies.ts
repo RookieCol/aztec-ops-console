@@ -5,7 +5,7 @@ import type { Task } from '@/lib/db/schema'
  *
  * Las dependencias se resolvieron por título al importar (`dependencyCode`, ver
  * scripts/import.ts). PRJ-04 tiene un ciclo real de 2 nodos (T02 <-> T03): ninguna de las
- * dos puede empezar y ningún campo del dataset lo dice (DATASET-HALLAZGOS.md §4). Se detecta
+ * dos puede empezar y ningún campo del dataset lo dice. Se detecta
  * con DFS simple porque el grafo por proyecto es minúsculo (4 tareas).
  */
 export function findDependencyCycles(tasks: Task[]): string[][] {

@@ -21,7 +21,7 @@ export const projects = sqliteTable('projects', {
   ownerAlias: text('owner_alias'),
   ownerRole: text('owner_role'),
 
-  // Declarado por la fuente — solo para contrastar. Ver DATASET-HALLAZGOS.md §2.
+  // Declarado por la fuente — solo para contrastar, nunca para decidir.
   declaredStatus: text('declared_status'),
   declaredHealth: text('declared_health'),
   declaredOpenTasks: integer('declared_open_tasks'),

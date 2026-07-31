@@ -5,9 +5,9 @@ import type { PersonWorkload } from './types'
 /**
  * Carga por persona, calculada desde Tasks — no desde la pestaña Team.
  *
- * No es que Team esté desactualizada: sus conteos coinciden exactos con este recálculo
- * (DATASET-HALLAZGOS.md §6). El defecto es que omite a Andrea Molina (4 tareas, responsable
- * de PRJ-19); Team suma 78 tareas y hay 82. Se recalcula por completitud.
+ * No es que Team esté desactualizada: sus conteos coinciden exactos con este recálculo. El
+ * defecto es que omite a Andrea Molina (4 tareas, responsable de PRJ-19); Team suma 78
+ * tareas y hay 82. Se recalcula por completitud.
  */
 export function computeWorkload(tasks: Task[], teamAliases: Set<string>, now = today()): PersonWorkload[] {
   const byAlias = new Map<string, Task[]>()

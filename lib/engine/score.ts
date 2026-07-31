@@ -7,7 +7,7 @@ const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n))
 
 /**
  * Urgencia continua, no por escalones. Con escalones fijos los 13 proyectos vencidos
- * empatarían en 100 y el orden colapsaría sobre prioridad+flags (DATASET-HALLAZGOS.md: hay
+ * empatarían en 100 y el orden colapsaría sobre prioridad+flags (hay
  * 101 días de dispersión entre PRJ-21 y PRJ-12). Vencido crece con los días de atraso;
  * por vencer decae con la distancia; sin fecha es neutro y visible en la UI, no oculto.
  */
@@ -40,7 +40,7 @@ const PRIORITY_BASE: Record<PriorityLabel, number> = {
 }
 
 /**
- * Prioridad de proyecto no existe en el dataset (§3 en PLAN.md): se deriva del conteo
+ * Prioridad de proyecto no existe en el dataset: se deriva del conteo
  * ponderado de tareas abiertas por prioridad, capado a 100. Tomar solo la máxima no
  * discrimina — daría 13 proyectos en "Critica" y 8 en "Alta" sin más matiz; el conteo sí
  * separa un proyecto con 1 crítica de uno con 1 crítica + 2 altas.

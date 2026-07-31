@@ -9,7 +9,7 @@ const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n))
 /**
  * Los 3 estados que pide el enunciado, cada uno con severidad graduada — no binaria.
  *
- * Por qué graduar: el dataset son dos cohortes pegadas (DATASET-HALLAZGOS.md §1). 17 de 22
+ * Por qué graduar: el dataset son dos cohortes pegadas. 17 de 22
  * proyectos comparten la misma crisis idéntica (1 tarea bloqueada, mismo texto de blockers).
  * Un flag sí/no deja 17 proyectos empatados; la severidad es lo único que los vuelve a
  * distinguir para decidir cuál atender primero dentro del mismo flag.
@@ -100,8 +100,4 @@ export function computeFlags(project: Project, fields: ProjectFields, tasks: Tas
   }
 
   return flags
-}
-
-export function flagOf(flags: Flag[], kind: Flag['kind']): Flag | undefined {
-  return flags.find((f) => f.kind === kind)
 }
