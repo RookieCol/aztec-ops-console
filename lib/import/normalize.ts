@@ -1,4 +1,5 @@
 import { COP_PER_USD } from '@/lib/config'
+import { formatDate } from '@/lib/format'
 
 /**
  * Normalizadores puros. Todos devuelven el valor y, cuando tuvieron que hacer algo no obvio,
@@ -53,7 +54,7 @@ export function normalizeDate(raw: unknown): Normalized<string | null> {
         {
           severity: 'info',
           code: 'date_from_excel_serial',
-          message: `Fecha venía como serial de Excel y se normalizó a ${iso}`,
+          message: `La celda traía un número de serie de Excel en vez de una fecha; se interpretó como ${iso}.`,
           rawValue: String(raw),
         },
       ],
@@ -69,7 +70,12 @@ export function normalizeDate(raw: unknown): Normalized<string | null> {
       return {
         value: null,
         issues: [
-          { severity: 'error', code: 'date_invalid', message: 'Fecha ISO inválida', rawValue: text },
+          {
+            severity: 'error',
+            code: 'date_invalid',
+            message: 'La fecha tiene formato correcto pero no existe en el calendario; queda vacía.',
+            rawValue: text,
+          },
         ],
       }
     }
@@ -88,7 +94,7 @@ export function normalizeDate(raw: unknown): Normalized<string | null> {
           {
             severity: 'error',
             code: 'date_invalid',
-            message: 'Fecha dd/mm/yyyy inválida',
+            message: 'La fecha dd/mm/yyyy no existe en el calendario; queda vacía.',
             rawValue: text,
           },
         ],
@@ -101,7 +107,7 @@ export function normalizeDate(raw: unknown): Normalized<string | null> {
         {
           severity: 'warn',
           code: 'date_format_mixed',
-          message: `Formato dd/mm/yyyy mezclado con ISO en la misma columna; se interpretó como ${value}`,
+          message: `Esta fecha viene como dd/mm/yyyy mientras el resto de la columna usa año-mes-día; se interpretó como ${formatDate(value)}.`,
           rawValue: text,
         },
       ],
@@ -114,7 +120,7 @@ export function normalizeDate(raw: unknown): Normalized<string | null> {
       {
         severity: 'error',
         code: 'date_unparseable',
-        message: 'No se pudo interpretar la fecha; queda vacía',
+        message: 'No se pudo interpretar el contenido de la celda como una fecha; queda vacía.',
         rawValue: text,
       },
     ],
@@ -134,7 +140,7 @@ export function normalizeValue(
         {
           severity: 'warn',
           code: 'value_missing',
-          message: 'Proyecto sin valor de negocio; queda desconocido (no cero)',
+          message: 'La fuente no trae valor de negocio para este proyecto; queda como desconocido, nunca como cero.',
         },
       ],
     }
@@ -148,7 +154,7 @@ export function normalizeValue(
         {
           severity: 'error',
           code: 'value_unparseable',
-          message: 'Valor de negocio ilegible',
+          message: 'El valor de negocio no se pudo leer como número; queda como desconocido.',
           rawValue: String(raw),
         },
       ],
@@ -162,7 +168,7 @@ export function normalizeValue(
         {
           severity: 'info',
           code: 'value_converted',
-          message: `COP ${num.toLocaleString('es-CO')} → USD ${Math.round(num / COP_PER_USD).toLocaleString('en-US')} a tasa fija ${COP_PER_USD}`,
+          message: `El valor venía en pesos colombianos (${num.toLocaleString('es-CO')} COP) y se convirtió a US$ ${Math.round(num / COP_PER_USD).toLocaleString('es-CO')} usando una tasa fija de ${COP_PER_USD.toLocaleString('es-CO')}.`,
           rawValue: String(num),
         },
       ],

@@ -23,6 +23,7 @@ import {
 } from '@/lib/db/schema'
 import { COP_PER_USD, SHEETS, SOURCE_XLSX } from '@/lib/config'
 import { today } from '@/lib/clock'
+import { formatDate } from '@/lib/format'
 import { readSheet } from '@/lib/import/sheet'
 import {
   isJunkNotesRow,
@@ -70,7 +71,7 @@ async function main() {
         rowRef: row.ref,
         severity: 'error',
         code: 'project_without_code',
-        message: 'Fila sin project_code: se descarta',
+        message: 'Fila de la hoja Projects sin código de proyecto: no se puede identificar, se descarta.',
       })
       continue
     }
@@ -89,7 +90,8 @@ async function main() {
         entityCode: code,
         severity: 'warn',
         code: 'target_date_missing',
-        message: 'Proyecto sin fecha límite: la urgencia queda neutra y se marca en la vista',
+        message:
+          'La fuente no trae fecha límite para este proyecto, así que no se puede medir su urgencia por fecha: queda en un valor neutro, señalado en la vista.',
       })
     }
     if (start.value && target.value && start.value >= target.value) {
@@ -99,7 +101,7 @@ async function main() {
         entityCode: code,
         severity: 'warn',
         code: 'zero_length_window',
-        message: `Inicio ${start.value} no es anterior a la fecha límite ${target.value}`,
+        message: `El proyecto arranca el ${formatDate(start.value)} y vence el ${formatDate(target.value)}: no queda ningún día para ejecutarlo.`,
       })
     }
 
@@ -195,7 +197,8 @@ async function main() {
       entityCode: p.code,
       severity: 'warn',
       code: 'absent_in_source',
-      message: 'Estaba en una importación anterior y no viene en esta fuente; se conserva',
+      message:
+        'Este proyecto venía en una importación anterior y ya no aparece en la fuente. No se borra: se conserva por si la ausencia fue un error del archivo.',
     })
   }
 
@@ -223,7 +226,7 @@ async function main() {
         rowRef: row.ref,
         severity: 'error',
         code: 'task_without_keys',
-        message: 'Fila sin task_code o project_code: se descarta',
+        message: 'Fila de la hoja Tasks sin código de tarea o de proyecto: no se puede vincular, se descarta.',
       })
       continue
     }
@@ -234,7 +237,7 @@ async function main() {
         entityCode: code,
         severity: 'error',
         code: 'orphan_task',
-        message: `La tarea apunta a ${projectCode}, que no está en Projects`,
+        message: `Esta tarea dice pertenecer al proyecto ${projectCode}, que no existe en la hoja Projects.`,
       })
     }
 
@@ -245,6 +248,11 @@ async function main() {
 
     const declaredOverdue = normalizeBool(row.get('is_overdue'))
     // La contradicción central del dataset, registrada fila por fila.
+    //
+    // El mensaje enuncia un hecho invariante (la fecha de entrega y lo que la fuente afirma
+    // sobre ella) en vez de una comparación contra "hoy". Se guarda en la base al importar:
+    // si dijera "y contra 2026-08-01 es Si", una semana después seguiría mostrando esa fecha
+    // como si fuera hoy. Así el texto sigue siendo cierto cuando se lea.
     if (due.value && declaredOverdue !== null) {
       const reallyOverdue = due.value < today()
       if (reallyOverdue !== declaredOverdue) {
@@ -254,7 +262,9 @@ async function main() {
           entityCode: code,
           severity: 'info',
           code: 'declared_overdue_mismatch',
-          message: `is_overdue declarado ${declaredOverdue ? 'Si' : 'No'} y contra ${today()} es ${reallyOverdue ? 'Si' : 'No'} (vence ${due.value})`,
+          message: declaredOverdue
+            ? `La fuente marca esta tarea como vencida, pero su fecha de entrega es el ${formatDate(due.value)}.`
+            : `Esta tarea venció el ${formatDate(due.value)}, pero la fuente la marca como al día.`,
         })
       }
     }
@@ -298,7 +308,7 @@ async function main() {
         entityCode: s.code,
         severity: 'warn',
         code: 'dependency_unresolved',
-        message: `No hay tarea "${s.dependencyTitle}" en ${s.projectCode}`,
+        message: `Depende de una tarea llamada "${s.dependencyTitle}", que no existe en este proyecto: la dependencia queda sin vincular.`,
         rawValue: s.dependencyTitle,
       })
       continue
@@ -343,7 +353,9 @@ async function main() {
         entityCode: p.code,
         severity: 'info',
         code: 'declared_overdue_count_mismatch',
-        message: `overdue_tasks declarado ${p.declaredOverdueTasks} y contra ${today()} son ${overdueNow}`,
+        // Acá el conteo sí es una foto del momento de importar (depende de qué día era),
+        // así que el mensaje lo dice en vez de hacerlo pasar por un dato vigente.
+        message: `La fuente declara ${p.declaredOverdueTasks} ${p.declaredOverdueTasks === 1 ? 'tarea vencida' : 'tareas vencidas'}; al importar (${formatDate(today())}) ${overdueNow === 1 ? 'era' : 'eran'} ${overdueNow}.`,
       })
     }
     if ((p.declaredOpenTasks ?? 0) !== mine.length) {
@@ -352,7 +364,7 @@ async function main() {
         entityCode: p.code,
         severity: 'info',
         code: 'declared_open_count_mismatch',
-        message: `open_tasks declarado ${p.declaredOpenTasks} y hay ${mine.length} tareas en la hoja`,
+        message: `La fuente declara ${p.declaredOpenTasks} ${p.declaredOpenTasks === 1 ? 'tarea abierta' : 'tareas abiertas'}, pero la hoja Tasks trae ${mine.length}.`,
       })
     }
   }
@@ -408,7 +420,7 @@ async function main() {
           entityCode: a,
           severity: 'warn',
           code: 'member_missing_in_team',
-          message: `${a} tiene tareas asignadas y no aparece en la pestaña Team; la carga se calcula desde Tasks`,
+          message: `${a} tiene tareas asignadas pero no figura en la pestaña Team, así que la carga del equipo se calcula desde las tareas y no desde esa hoja.`,
         })
       }
     }
@@ -428,7 +440,7 @@ async function main() {
         sheet: SHEETS.notes,
         severity: 'info',
         code: 'junk_rows_skipped',
-        message: `${junk} filas de prueba descartadas de la pestaña Notas`,
+        message: `Se descartaron ${junk} filas de prueba de la pestaña Notas (contenido tipo "test / ok", sin datos reales).`,
       })
     }
   }
