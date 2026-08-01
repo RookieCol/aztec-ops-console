@@ -84,7 +84,10 @@ los datos: **detectar el ciclo es una función pura de 15 líneas** y muestra al
 
 ## 5. El texto libre no tiene información
 
-- **16 títulos distintos** para 82 tareas: 4 arquetipos por tipo de trabajo, repetidos.
+- **Los 82 títulos son únicos, pero la unicidad es artificial.** Cada uno es `<arquetipo> -
+  <nombre del proyecto>`, y solo hay **16 arquetipos** (4 por tipo de trabajo). El sufijo repite
+  `project_name`, que la fila ya trae en su propia columna. Información real de la columna: 16
+  valores.
 - **`detail` == `last_progress` en 82 de 82 filas.** El campo "último avance" es una copia del
   detalle: cero señal de progreso real.
 - **4 valores distintos de `blockers`** para 22 proyectos, y el texto es genérico ("There are
@@ -146,7 +149,82 @@ esté mal.
 - Los 4 objetos de dibujo embebidos en el xlsx están vacíos; no hay contenido oculto ni
   comentarios.
 
-## 8. Distribución del backlog
+## 8. Qué columna sostiene qué, y cuál no sostiene nada
+
+Inventario de las 45 columnas del archivo contra su uso real en el código. Cinco clases:
+
+| Clase | Qué significa |
+|---|---|
+| **Núcleo** | El motor decide con ella. Si falta o miente, el orden cambia. |
+| **Contraste** | Se importa **solo** para compararla con lo recalculado y mostrar la discrepancia. Nunca decide. |
+| **Editable** | El sistema la vuelve suya: el humano la edita y sobrevive a la reimportación. |
+| **Contexto** | Se muestra, no se usa para decidir. |
+| **Inerte** | Ni se decide ni se muestra. Se importa por fidelidad al origen. |
+
+### Projects — 19 columnas
+
+| Columna | Clase | Por qué |
+|---|---|---|
+| `project_code` | Núcleo | Clave primaria de todo el modelo |
+| `target_date` | **Núcleo** | La columna más cara del archivo: 18 lecturas. Urgencia, riesgo, incoherencia de plan |
+| `engagement_type` | Núcleo | Separa las tres colas — trabajos distintos no compiten por el mismo orden |
+| `business_value` + `currency` | Núcleo | Desempate; `currency` dispara la conversión COP→USD |
+| `owner_alias` | Editable | Uno de los 7 campos |
+| `blockers` | Editable + señal | Alimenta el flag de bloqueo y el humano lo edita |
+| `health` | **Contraste** | Es lo que el sistema existe para desmentir (PRJ-21 "Sano" a 171 días) |
+| `open_tasks`, `overdue_tasks` | **Contraste** | Subcuentan en los 17 proyectos de la cohorte A |
+| `status` | **Reemplazada** | Un solo valor, "Activo", en 22 de 22. No es un estado: es una constante. El sistema crea el suyo |
+| `client_alias`, `project_name` | Contexto | Identificación en la UI |
+| `summary` | Contexto | 12 de 18 son boilerplate; se muestra, no decide |
+| `start_date` | Casi inerte | Un solo uso: detectar ventana de cero días (PRJ-03) |
+| `project_type_api` | **Inerte** | Eje redundante: Consultoría/Automatización cruza los tres `engagement_type` |
+| `stage` | **Inerte** | Determinada por `engagement_type`: Diagnóstico ⇔ Descubrimiento, resto ⇔ Ejecución |
+| `owner_role` | **Inerte** | 2 valores para 22 proyectos; se deriva del alias |
+| `recent_completed_examples` | **Inerte** | Códigos de otro sistema (TUE-24, GRQ-20…) que no cruzan con ningún `task_code` |
+
+### Tasks — 15 columnas
+
+| Columna | Clase | Por qué |
+|---|---|---|
+| `task_code`, `project_code` | Núcleo | Claves |
+| `due_date` | **Núcleo** | Vencimiento real y la detección de tareas que vencen después del deadline |
+| `priority` | **Núcleo** | Conteo ponderado → prioridad derivada del proyecto |
+| `status` | **Núcleo** | Tablero, tareas abiertas, "sin tarea en progreso" |
+| `assignee_alias` | **Núcleo** | Única fuente de la carga por persona |
+| `dependency` | **Núcleo** | El grafo, y el ciclo de PRJ-04 que ningún campo declara |
+| `is_overdue` | **Contraste** | 34 de 82 mal. Se importa para mostrar la contradicción, jamás para decidir |
+| `title` | Contexto | 82 únicos, pero 16 arquetipos + el nombre del proyecto |
+| `assignee_role` | Contexto | 2 valores; se deriva del alias |
+| `detail` | Contexto | 16 valores distintos para 82 filas |
+| `engagement_type`, `client_alias`, `project_name` | **Inerte** | Desnormalización: copian Projects fila a fila |
+| `last_progress` | **Inerte** | Copia exacta de `detail` en 82 de 82 filas. Cero señal de progreso |
+
+### Team — 9 columnas · todas contraste
+
+Los 7 numéricos coinciden exactamente con el recálculo desde Tasks, así que no aportan nada
+nuevo — y omiten a Andrea Molina. Se importan para poder decir *"la capacidad declarada
+concuerda, pero está incompleta"*; la carga que muestra la consola sale siempre de Tasks.
+
+### Notas — 2 columnas
+
+No son datos: son la descripción del ejercicio, con filas de prueba (`test | ok`, `x | y`) antes
+del contenido real. Se descartan por forma, no por posición.
+
+### Resumen
+
+**10 columnas de 45 mueven el sistema.** 11 son contraste —existen para que la consola pueda
+mostrar en qué miente el origen—, 8 dan contexto en pantalla y **9 son inertes**: redundantes
+(`stage`, `project_type_api`, las tres desnormalizadas de Tasks), derivables (`owner_role`,
+`assignee_role`), duplicadas (`last_progress`) o no vinculables
+(`recent_completed_examples`). Se importan igual, porque descartar en la ingesta lo que hoy no
+se usa obliga a reimportar el histórico el día que se necesite.
+
+**La consecuencia de diseño:** el archivo tiene 45 columnas y una sexta parte carga toda la
+decisión. El resto es contexto, redundancia o —en 11 casos— evidencia de que lo declarado no
+coincide con lo real. Un sistema que tratara las 45 como equivalentes repartiría su confianza
+al revés.
+
+## 9. Distribución del backlog
 
 | | Crítica | Alta | Media | Baja |
 |---|---|---|---|---|
@@ -163,7 +241,7 @@ abandonado.
 
 ---
 
-## 9. Qué cambia esto en el sistema
+## 10. Qué cambia esto en el sistema
 
 1. **Recalcular todo contra hoy** deja de ser una opinión: `is_overdue` no es un cálculo, es un
    literal de plantilla que se contradice a sí mismo el 2026-07-11.
@@ -174,6 +252,6 @@ abandonado.
    puras y no dependen de la fecha de hoy.
 4. **Carga por persona desde Tasks** por completitud (Andrea Molina), no porque Team esté
    desactualizado.
-5. **Cero features de texto o IA en el producto**, con la razón contada: 16 títulos para 82
-   tareas y `last_progress` duplicando `detail`.
+5. **Cero features de texto o IA en el producto**, con la razón contada: 16 arquetipos de título
+   para 82 tareas y `last_progress` duplicando `detail` en las 82 filas.
 6. **`status`, `priority`, `next_step` y `notes` son campos del sistema**, no del origen.
