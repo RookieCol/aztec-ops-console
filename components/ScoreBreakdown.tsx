@@ -20,6 +20,17 @@ const COMPONENTS: {
 ]
 
 /**
+ * Tres orígenes, no dos. Con un booleano "es override / no lo es", un proyecto sin ninguna tarea
+ * mostraba "(derivada de tareas)" — y ese es justo el caso más visible del sistema: PRJ-21,
+ * vencido y con el backlog vacío. La etiqueta contradecía al número que estaba al lado.
+ */
+const PRIORITY_SOURCE: Record<ScoreBreakdownType['prioritySource'], string> = {
+  override: '(fijada manualmente)',
+  tasks: '(derivada de tareas)',
+  'empty-backlog': '(vencido y sin tareas)',
+}
+
+/**
  * Desglose visible del score = 0.5*urgencia + 0.3*prioridad + 0.2*flags. El enunciado pide
  * un criterio de priorización claro: aquí se ve la fórmula, cada componente (0-100), su peso,
  * la contribución (peso*valor) y de dónde sale la prioridad (derivada de tareas u override manual).
@@ -65,9 +76,7 @@ export function ScoreBreakdown({ score }: ScoreBreakdownProps) {
         <span className="text-xs text-muted-foreground">
           Prioridad:{' '}
           <span className="font-medium text-foreground">{displayLabel(score.priorityLabel)}</span>{' '}
-          <span className="text-muted-foreground/80">
-            {score.priorityIsOverride ? '(fijada manualmente)' : '(derivada de tareas)'}
-          </span>
+          <span className="text-muted-foreground/80">{PRIORITY_SOURCE[score.prioritySource]}</span>
         </span>
         <span className="text-sm font-semibold tabular-nums text-foreground">
           Total: {score.total.toFixed(1)}

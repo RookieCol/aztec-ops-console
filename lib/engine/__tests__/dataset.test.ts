@@ -106,7 +106,7 @@ describe('motor de detección contra el dataset real (fecha congelada 2026-07-31
     const views = await loadViews()
     const prj21 = views.find((v) => v.project.code === 'PRJ-21')!
     expect(prj21.score.priorityLabel).not.toBe('Baja')
-    expect(prj21.score.priorityIsOverride).toBe(false) // no es un override manual, es derivado
+    expect(prj21.score.prioritySource).toBe('empty-backlog') // no es override ni conteo: es la excepción
 
     const ranked = [...views].sort((a, b) => b.score.total - a.score.total)
     const position = ranked.findIndex((v) => v.project.code === 'PRJ-21')

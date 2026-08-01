@@ -65,10 +65,10 @@ export function priorityScore(
   tasks: Task[],
   override: string | null,
   targetIsOverdue = false,
-): { score: number; label: PriorityLabel; isOverride: boolean } {
+): { score: number; label: PriorityLabel; source: 'override' | 'tasks' | 'empty-backlog' } {
   if (override && (PRIORITY_LABELS as readonly string[]).includes(override)) {
     const label = override as PriorityLabel
-    return { score: PRIORITY_BASE[label], label, isOverride: true }
+    return { score: PRIORITY_BASE[label], label, source: 'override' }
   }
 
   if (tasks.length === 0) {
@@ -81,11 +81,11 @@ export function priorityScore(
     // y eso exige triage, no que se lo ignore. Uno sano sin tareas (recién creado, fecha
     // futura) sí es neutro: no hay señal para reclamar urgencia todavía.
     const label: PriorityLabel = targetIsOverdue ? 'Alta' : 'Media'
-    return { score: PRIORITY_BASE[label], label, isOverride: false }
+    return { score: PRIORITY_BASE[label], label, source: 'empty-backlog' }
   }
 
   const derived = derivedPriority(tasks)
-  return { score: derived.score, label: derived.label, isOverride: false }
+  return { score: derived.score, label: derived.label, source: 'tasks' }
 }
 
 /** bloqueado +60, sin siguiente paso +40, cap 100. Un proyecto puede tener ambos. */
@@ -115,7 +115,7 @@ export function computeScore(
     flags: flagsPart,
     total,
     priorityLabel: prio.label,
-    priorityIsOverride: prio.isOverride,
+    prioritySource: prio.source,
   }
 }
 

@@ -48,7 +48,7 @@ describe('priorityScore', () => {
     const derived = priorityScore([makeTask({ priority: 'Baja' })], null)
     const overridden = priorityScore([makeTask({ priority: 'Baja' })], 'Critica')
     expect(overridden.label).toBe('Critica')
-    expect(overridden.isOverride).toBe(true)
+    expect(overridden.source).toBe('override')
     expect(overridden.score).toBeGreaterThan(derived.score)
   })
 
@@ -74,7 +74,7 @@ describe('priorityScore', () => {
   it('el override sigue ganando aunque no haya tareas', () => {
     const overridden = priorityScore([], 'Baja', true)
     expect(overridden.label).toBe('Baja')
-    expect(overridden.isOverride).toBe(true)
+    expect(overridden.source).toBe('override')
   })
 })
 

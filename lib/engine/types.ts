@@ -14,9 +14,13 @@ export type ScoreBreakdown = {
   prioridad: number
   flags: number
   total: number
-  /** Prioridad Critica/Alta/Media/Baja usada, y si viene de override manual o derivada. */
   priorityLabel: 'Critica' | 'Alta' | 'Media' | 'Baja'
-  priorityIsOverride: boolean
+  /**
+   * De dónde salió esa prioridad. Son tres casos, no dos: un booleano `isOverride` hacía que el
+   * caso `empty-backlog` se mostrara como "derivada de tareas" en un proyecto sin ninguna tarea
+   * — la UI contradecía al dato en el ejemplo más visible del sistema (PRJ-21).
+   */
+  prioritySource: 'override' | 'tasks' | 'empty-backlog'
 }
 
 export type ProjectView = {
