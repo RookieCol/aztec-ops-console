@@ -255,3 +255,31 @@ abandonado.
 5. **Cero features de texto o IA en el producto**, con la razón contada: 16 arquetipos de título
    para 82 tareas y `last_progress` duplicando `detail` en las 82 filas.
 6. **`status`, `priority`, `next_step` y `notes` son campos del sistema**, no del origen.
+
+---
+
+## 11. Los pesos importan menos que los insumos
+
+Corolario medible de todo lo anterior. `scripts/sensitivity.ts` recalcula el ranking completo
+bajo esquemas de ponderación deliberadamente distintos:
+
+| Esquema | urgencia / prioridad / flags | top 10 ∩ base | Proyectos que cruzan la mitad |
+|---|---|---|---|
+| Base (el del sistema) | 0.5 / 0.3 / 0.2 | — | — |
+| Urgencia dominante | 0.7 / 0.2 / 0.1 | 7/10 | 1 |
+| Prioridad dominante | 0.3 / 0.5 / 0.2 | 9/10 | 2 |
+| Flags dominantes | 0.3 / 0.2 / 0.5 | 9/10 | 1 |
+| **Plano (sin criterio)** | 0.34 / 0.33 / 0.33 | **10/10** | **0** |
+| Solo urgencia | 1 / 0 / 0 | 7/10 | 1 |
+
+Con pesos planos el top 10 es idéntico al del sistema y nadie cruza de la mitad superior a la
+inferior. PRJ-04 —el del ciclo de dependencias— queda primero bajo todos los esquemas salvo
+urgencia pura, donde lo desplaza PRJ-21, el proyecto declarado "Sano" con 171 días de atraso.
+
+**Lectura:** el orden lo fija la evidencia recalculada —fechas contra hoy, conteo de tareas
+abiertas, flags derivados del grafo— y no la ponderación elegida. Eso es lo que se esperaría de
+un criterio que descansa sobre datos y no sobre coeficientes: si mover los pesos a cualquier
+extremo reordenara la cartera, la fórmula estaría opinando más que midiendo.
+
+No convierte los pesos en una verdad matemática: sigue siendo una decisión. Pero acota cuánto
+está en juego en esa decisión, y el comando para volver a comprobarlo está en el repo.

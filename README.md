@@ -31,6 +31,7 @@ pnpm dev        # → http://localhost:3000
 | `pnpm lint` | ESLint |
 | `pnpm db:import` | Reimporta sin borrar la base (idempotente) |
 | `pnpm tsx scripts/verify.ts` | Vuelca el estado de la base tras importar |
+| `pnpm tsx scripts/sensitivity.ts` | Recalcula el ranking con otros pesos, para ver cuánto dependen de ellos |
 
 Para comprobar que una reimportación **no pisa el trabajo humano** — la garantía que separa a
 un importador de un seed — hay que correr los tres pasos en orden:
@@ -113,8 +114,11 @@ score = 0.5 · urgencia  +  0.3 · prioridad  +  0.2 · flags
 **Desempate** — mayor valor de negocio conocido.
 <sub>Un valor desconocido nunca cuenta como cero: eso lo pondría antes que uno de valor real bajo.</sub>
 
-> Los pesos son una decisión de diseño, no una verdad matemática. Lo que importa es que están
-> definidos, se ven al expandir cada proyecto, y se cambian sin tocar el resto del sistema.
+> Los pesos son una decisión de diseño, no una verdad matemática — y se puede comprobar cuánto
+> dependen de ellos los resultados: `pnpm tsx scripts/sensitivity.ts` recalcula el ranking bajo
+> esquemas deliberadamente distintos. **Con pesos planos (0.34/0.33/0.33) el top 10 es idéntico
+> y ningún proyecto cruza de la mitad superior a la inferior.** El orden lo fija la evidencia
+> recalculada, no la ponderación elegida.
 
 ---
 
