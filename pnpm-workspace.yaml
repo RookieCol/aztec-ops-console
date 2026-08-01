@@ -1,3 +1,11 @@
+# `packages` es obligatorio para pnpm 9: sin él, pnpm lee este archivo como definición de
+# workspace y falla con "packages field missing or empty". El build de producción usa pnpm 9
+# aunque en local usemos 11, así que el archivo tiene que ser válido para ambos.
+packages:
+  - .
+
+# Desde pnpm 10 los scripts de build de dependencias están bloqueados por defecto;
+# better-sqlite3 es nativo y necesita el suyo. pnpm 9 los ejecuta igual e ignora esta clave.
 allowBuilds:
   better-sqlite3: true
   esbuild: true
