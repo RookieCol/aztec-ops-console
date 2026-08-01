@@ -114,11 +114,15 @@ score = 0.5 · urgencia  +  0.3 · prioridad  +  0.2 · flags
 **Desempate** — mayor valor de negocio conocido.
 <sub>Un valor desconocido nunca cuenta como cero: eso lo pondría antes que uno de valor real bajo.</sub>
 
-> Los pesos son una decisión de diseño, no una verdad matemática — y se puede comprobar cuánto
+> Los pesos son una decisión de diseño, no una verdad matemática — y se puede medir cuánto
 > dependen de ellos los resultados: `pnpm tsx scripts/sensitivity.ts` recalcula el ranking bajo
-> esquemas deliberadamente distintos. **Con pesos planos (0.34/0.33/0.33) el top 10 es idéntico
-> y ningún proyecto cruza de la mitad superior a la inferior.** El orden lo fija la evidencia
-> recalculada, no la ponderación elegida.
+> esquemas deliberadamente distintos. **Moviéndolos poco, el orden casi no cambia; llevándolos a
+> un extremo, cambian 3 de los 10 primeros.**
+>
+> El script también imprime por qué: los términos están correlacionados en esta cartera
+> (prioridad y flags, 0.76) y el de flags solo toma tres valores. Con insumos que apuntan en la
+> misma dirección, los pesos tienen poca palanca. Eso acota cuánto está en juego al elegirlos
+> aquí — no prueba que la fórmula aguante cualquier portafolio.
 
 ---
 

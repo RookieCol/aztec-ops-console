@@ -258,9 +258,11 @@ abandonado.
 
 ---
 
-## 11. Los pesos importan menos que los insumos
+## 11. Cuánta palanca tienen los pesos
 
-Corolario medible de todo lo anterior. `scripts/sensitivity.ts` recalcula el ranking completo
+Lo anterior deja una pregunta obvia: si los pesos del score son una decisión, ¿cuánto cambiaría
+el resultado con otros números? Se puede medir. `scripts/sensitivity.ts` recalcula el ranking
+completo
 bajo esquemas de ponderación deliberadamente distintos:
 
 | Esquema | urgencia / prioridad / flags | top 10 ∩ base | Proyectos que cruzan la mitad |
@@ -272,14 +274,32 @@ bajo esquemas de ponderación deliberadamente distintos:
 | **Plano (sin criterio)** | 0.34 / 0.33 / 0.33 | **10/10** | **0** |
 | Solo urgencia | 1 / 0 / 0 | 7/10 | 1 |
 
-Con pesos planos el top 10 es idéntico al del sistema y nadie cruza de la mitad superior a la
-inferior. PRJ-04 —el del ciclo de dependencias— queda primero bajo todos los esquemas salvo
-urgencia pura, donde lo desplaza PRJ-21, el proyecto declarado "Sano" con 171 días de atraso.
+Con desplazamientos moderados el orden casi no se mueve. Llevando los pesos a un extremo
+—urgencia pura, o urgencia al 0.7— **cambian 3 de los 10 primeros**, que no es despreciable.
+PRJ-04, el del ciclo de dependencias, queda primero bajo todos los esquemas salvo urgencia pura,
+donde lo desplaza PRJ-21.
 
-**Lectura:** el orden lo fija la evidencia recalculada —fechas contra hoy, conteo de tareas
-abiertas, flags derivados del grafo— y no la ponderación elegida. Eso es lo que se esperaría de
-un criterio que descansa sobre datos y no sobre coeficientes: si mover los pesos a cualquier
-extremo reordenara la cartera, la fórmula estaría opinando más que midiendo.
+### Por qué se mueve tan poco, y por qué eso no prueba lo que parece
 
-No convierte los pesos en una verdad matemática: sigue siendo una decisión. Pero acota cuánto
-está en juego en esa decisión, y el comando para volver a comprobarlo está en el repo.
+La lectura fácil sería "el orden lo fijan los datos, no los coeficientes". Es demasiado
+generosa. La estabilidad tiene una causa medible, y es de **esta cartera**, no de la fórmula:
+
+| | |
+|---|---|
+| Correlación urgencia ↔ prioridad | 0.35 |
+| Correlación urgencia ↔ flags | 0.48 |
+| **Correlación prioridad ↔ flags** | **0.76** |
+| Valores distintos que toma el término de flags | **3** (0, 40, 60) |
+
+Prioridad y flags apuntan casi a lo mismo —un proyecto bloqueado suele tener tareas críticas— y
+el término de flags es casi binario. Con insumos correlacionados y uno de ellos de baja
+resolución, **cualquier ponderación produce un orden parecido**: los pesos tienen poca palanca
+sobre la que actuar.
+
+**Lectura correcta:** el ejercicio acota cuánto está en juego al elegir los pesos en este
+portafolio — poco. No demuestra que la fórmula sea robusta en general; sobre una cartera más
+heterogénea, donde los tres términos no se movieran juntos, los pesos pesarían más. Sigue siendo
+una decisión de diseño, y ahora se sabe con qué margen se tomó.
+
+`scripts/sensitivity.ts` imprime la tabla, las correlaciones y la resolución de cada término,
+así que la afirmación se puede volver a verificar —o refutar— con un comando.

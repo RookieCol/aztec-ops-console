@@ -79,7 +79,45 @@ for (const scheme of SCHEMES) {
   )
 }
 
+/**
+ * Sin esto, la estabilidad del ranking se puede leer mal — como si probara que la fórmula es
+ * robusta en general. Buena parte de ella viene de la cartera: si los tres términos apuntan en
+ * la misma dirección, cualquier ponderación da parecido. Medir la correlación y la resolución
+ * de cada término es lo que separa "la fórmula aguanta" de "estos datos no discriminan".
+ */
+function correlation(a: number[], b: number[]): number {
+  const n = a.length
+  const meanA = a.reduce((s, x) => s + x, 0) / n
+  const meanB = b.reduce((s, x) => s + x, 0) / n
+  let cov = 0
+  let varA = 0
+  let varB = 0
+  for (let i = 0; i < n; i++) {
+    cov += (a[i] - meanA) * (b[i] - meanB)
+    varA += (a[i] - meanA) ** 2
+    varB += (b[i] - meanB) ** 2
+  }
+  return cov / Math.sqrt(varA * varB)
+}
+
+const urgencias = terms.map((t) => t.urgencia)
+const prioridades = terms.map((t) => t.prioridad)
+const flagsVals = terms.map((t) => t.flags)
+
+console.log('\nPor qué el orden se mueve poco — correlación entre los términos:')
+console.log(`  urgencia  ↔ prioridad  ${correlation(urgencias, prioridades).toFixed(2)}`)
+console.log(`  urgencia  ↔ flags      ${correlation(urgencias, flagsVals).toFixed(2)}`)
+console.log(`  prioridad ↔ flags      ${correlation(prioridades, flagsVals).toFixed(2)}`)
 console.log(
-  '\nLectura: si el top 10 y la mitad superior se mantienen aun con pesos planos, el orden lo\n' +
-    'está fijando la evidencia recalculada, no la ponderación elegida.',
+  `\nResolución de cada término (valores distintos):` +
+    `\n  urgencia ${new Set(urgencias.map(Math.round)).size}` +
+    ` · prioridad ${new Set(prioridades).size}` +
+    ` · flags ${new Set(flagsVals).size} → ${[...new Set(flagsVals)].sort((a, b) => a - b).join(', ')}`,
+)
+
+console.log(
+  '\nLectura: con desplazamientos moderados el orden casi no se mueve; en los extremos cambian\n' +
+    'unos pocos del top 10. Pero parte de esa estabilidad es de la cartera, no de la fórmula:\n' +
+    'con términos correlacionados y un flags de baja resolución, los pesos tienen poca palanca.\n' +
+    'Sirve para acotar cuánto está en juego al elegirlos, no para afirmar que da igual.',
 )
