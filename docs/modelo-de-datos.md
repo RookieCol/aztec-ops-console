@@ -216,3 +216,19 @@ vieja parece equivocada cuando en realidad era correcta el día que corrió.
 `change_log` es append-only porque **el estado actual no cuenta la historia**. Que un proyecto
 diga hoy "En pausa" no dice si lleva tres meses así o si alguien lo cambió hace diez minutos, y
 esa diferencia es justamente la que importa para priorizar.
+
+---
+
+## Alternativas descartadas
+
+Cada decisión de arriba tuvo una opción razonable enfrente. Vale la pena dejar por escrito cuál
+era y por qué se descartó — es la parte que un diagrama no muestra.
+
+| Se eligió | Se descartó | Por qué |
+|---|---|---|
+| **Recalcular en cada lectura** | Materializar los derivados e invalidarlos | Invalidar por tiempo es el bug del dataset con otro nombre: un valor correcto el día que se escribió, envejeciendo en silencio. Con 25 proyectos el cálculo es gratis, así que la caché solo aportaría riesgo |
+| **Severidad graduada 0–100** | Flags binarios sí/no | Con 17 proyectos que son copias del mismo caso, lo binario no ordena: deja media cartera en rojo sin decir por dónde empezar |
+| **SQLite + Drizzle** | JSON en disco | Hace falta upsert transaccional. Sin transacción, un `createProject` que falla a mitad deja un proyecto sin `project_fields` y rompe la consola entera |
+| **Prioridad por conteo ponderado** | Tomar la prioridad máxima de las tareas | La máxima daba 13 proyectos en "Crítica" y 8 en "Alta": no discrimina. El conteo separa uno con una tarea crítica de otro con una crítica y dos altas |
+| **Dependencias resueltas al importar** | Resolverlas por título en cada lectura | Guardar `dependency_title` y `dependency_code` permite auditar la resolución en vez de confiar en ella, y deja la detección de ciclos como función pura sobre códigos |
+| **Un `engagement_type` para las colas** | Cruzar `engagement_type` × `project_type_api` × `stage` | `stage` está determinada por `engagement_type` y `project_type_api` cruza los tres tipos sin agrupar nada. Tres ejes habrían multiplicado las colas sin añadir información |
