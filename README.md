@@ -133,6 +133,9 @@ app/            ← 3 rutas: consola, detalle de proyecto, alta
 `lib/engine/` no depende del framework ni de la base: son funciones puras a las que se les
 inyecta la fecha, por eso se pueden testear sin levantar nada.
 
+El diagrama entidad-relación y las razones detrás de cada separación de tablas están en
+**[`docs/modelo-de-datos.md`](docs/modelo-de-datos.md)**.
+
 <details>
 <summary><b>Datos incluidos</b></summary>
 
